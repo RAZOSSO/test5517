@@ -1,3 +1,6 @@
 .env
 __pycache__/
 *.pyc
+google-service-account.json
+book-search-project-ha171-0b3cb04c1011.json
+line_ocr_records.csv
