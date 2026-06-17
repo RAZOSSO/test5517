@@ -12,6 +12,7 @@ import io
 import os
 import csv
 import json
+import base64
 import shutil
 import tempfile
 from datetime import datetime
@@ -44,6 +45,7 @@ OCR_OUTPUT_CSV = Path(os.getenv("OCR_OUTPUT_CSV", "line_ocr_records.csv"))
 OCR_LANGUAGE = os.getenv("OCR_LANGUAGE", "jpn+eng")
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT", "")
+GOOGLE_SERVICE_ACCOUNT_JSON_B64 = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_B64", "")
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Sheet1")
 TESSERACT_CMD = os.getenv("TESSERACT_CMD", "")
@@ -170,19 +172,34 @@ def get_google_worksheet():
 
     credentials_path = Path(GOOGLE_SERVICE_ACCOUNT_JSON) if GOOGLE_SERVICE_ACCOUNT_JSON else None
     global service_account_tempfile
-    if not credentials_path and GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT:
+    json_content = None
+    if GOOGLE_SERVICE_ACCOUNT_JSON_B64:
         try:
-            json.loads(GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT)
+            json_content = base64.b64decode(GOOGLE_SERVICE_ACCOUNT_JSON_B64).decode("utf-8")
+            json.loads(json_content)
+        except Exception as e:
+            print(f"Google Sheets設定エラー: GOOGLE_SERVICE_ACCOUNT_JSON_B64 が不正です: {e}")
+            return None
+    elif GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT:
+        try:
+            json_content = GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT
+            json.loads(json_content)
+        except Exception as e:
+            print(f"Google Sheets設定エラー: GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT が不正です: {e}")
+            return None
+
+    if not credentials_path and json_content:
+        try:
             tmp = tempfile.NamedTemporaryFile(
                 mode="w", suffix=".json", delete=False, encoding="utf-8"
             )
-            tmp.write(GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT)
+            tmp.write(json_content)
             tmp.flush()
             tmp.close()
             service_account_tempfile = tmp.name
             credentials_path = Path(tmp.name)
         except Exception as e:
-            print(f"Google Sheets設定エラー: GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT が不正です: {e}")
+            print(f"Google Sheets設定エラー: 鍵ファイル作成に失敗しました: {e}")
             return None
 
     if not credentials_path or not credentials_path.exists():
