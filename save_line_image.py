@@ -47,6 +47,7 @@ GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_CON
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Sheet1")
 TESSERACT_CMD = os.getenv("TESSERACT_CMD", "")
+TESSDATA_PREFIX = os.getenv("TESSDATA_PREFIX", "")
 
 if not CHANNEL_ACCESS_TOKEN or not CHANNEL_SECRET:
     raise SystemExit(
@@ -113,11 +114,22 @@ def extract_text_from_image(image_path: Path) -> str:
         elif default_windows.exists():
             pytesseract.pytesseract.tesseract_cmd = str(default_windows)
 
-    img = Image.open(image_path)
-    # OCR精度向上のため、グレースケール化して処理する
-    img = ImageOps.grayscale(ImageOps.exif_transpose(img))
-    text = pytesseract.image_to_string(img, lang=OCR_LANGUAGE)
-    return text.strip()
+    if TESSDATA_PREFIX:
+        os.environ["TESSDATA_PREFIX"] = TESSDATA_PREFIX
+    else:
+        heroku_tessdata = Path("/app/.apt/usr/share/tesseract-ocr/5/tessdata")
+        if heroku_tessdata.exists():
+            os.environ["TESSDATA_PREFIX"] = str(heroku_tessdata)
+
+    try:
+        img = Image.open(image_path)
+        # OCR精度向上のため、グレースケール化して処理する
+        img = ImageOps.grayscale(ImageOps.exif_transpose(img))
+        text = pytesseract.image_to_string(img, lang=OCR_LANGUAGE)
+        return text.strip()
+    except Exception as e:
+        print(f"OCRエラー: {e}")
+        return ""
 
 
 def append_ocr_record(
